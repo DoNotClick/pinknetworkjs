@@ -66,7 +66,7 @@ if(memo === false) {
     console.log("bankroll too small")
 }
 
-// TODO: send transaction with memo
+// TODO: send transaction with memo["memo"]
 
 // listen to new roll results
 bankroll.getCycleRollSubscription(roll_id).onNewRollResult((roll) => {
@@ -137,7 +137,8 @@ which will return the other classes.
 * ENDPOINTS
   * `async getRollHistory(limit = 50, page = 1, rake_recipient = null, bettor = null)` // endpoint /v1/rolls
   * `async getRollResult(roll_id)` // endpoint /v1/rolls/:roll_id
-  * `async getCycleRoll(roll_id)` // endpoint /v1/cycles/info/:roll_id
+  * `async getCycleRollInfo(roll_id)` // endpoint /v1/cycles/info/:roll_id
+  * `async getCycleRollRanking(roll_id)` // endpoint /v1/cycles/ranking/:roll_id
   * `async getCycleRollHistory(roll_id, limit = 50, page = 1, bettor = null)` // endpoint /v1/cycles/:roll_id
   * `async getCycleRollResult(roll_id, cycle_id)` // endpoint /v1/cycles/:roll_id/:cycle_id
 
@@ -183,4 +184,24 @@ fires a event when a new bet or a new result was published on the blockchain for
 * Events
   * `onNewRollResult(callback cb)`
   * `onNewBet(callback cb)`
+  * `onBankrollUpdate(callback cb)`
 
+### Chat
+The chat api allows to provide a simple chat with scatter authentication and connects
+to the pink.network backend servers, so it can be used in frontend only applications.
+
+#### class ChatAPI
+
+* Methods
+  * `login(string signature, string publicKey, string account_name, string avatar)` // use scatter method authenticate to sign the nonce. Provide Scatter base 64 image as avatar (See Examples) 
+  * `logout()` // logout
+  * `send(string message)` // send a chat message
+  
+* Getter
+  * `isAuthenticated()` // is client authenticated?
+  * `getAuthToken()` // returns the nonce which has to be signed by Scatter
+
+* Events
+  * `onMessage(callback cb)` // new message came in
+  * `onLoad(callback cb)` // chat loaded (last 25 messages)
+  * `onError(callback cb)` // error occurred.

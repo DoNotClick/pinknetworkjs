@@ -1,7 +1,7 @@
 const bankroll_management = require("./bankroll-management");
 
 module.exports = function (io, request) {
-    const API_ENDPOINT = "https://api.pink.network/bankroll/";
+    const API_ENDPOINT = "https://api.pink.network/wax/bankroll/";
 
     class BankrollAPI {
         constructor() {
@@ -38,7 +38,7 @@ module.exports = function (io, request) {
          */
         createBetConfigByMultiplier(multiplier, rake, max_roll = 10000) {
             let lower_bound = 1;
-            let upper_bound = Math.floor(((99-rake)/(100*multiplier)) * max_roll);
+            let upper_bound = Math.floor(((99 - rake) / (100 * multiplier)) * max_roll);
 
             return new BetConfig(multiplier, lower_bound, upper_bound, max_roll);
         }
@@ -53,7 +53,7 @@ module.exports = function (io, request) {
          */
         createBetConfigByRange(lower_bound, upper_bound, rake, max_roll = 10000) {
             let odds = (upper_bound - lower_bound + 1) / max_roll;
-            let multiplier = ((99-rake)/(100*odds));
+            let multiplier = ((99 - rake) / (100 * odds));
 
             return new BetConfig(multiplier.toFixed(3), lower_bound, upper_bound, max_roll);
         }
@@ -75,7 +75,7 @@ module.exports = function (io, request) {
          * @param {number} amount
          * @param {String} rake_recipient
          * @param {BetConfig} bet_config
-         * @returns {boolean|{identifier: string, amount: *, memo: string}}
+         * @returns {boolean|{identifier: string, quantity: string, client_seed: string, memo: string}}
          */
         createRollTransactionMemo(amount, rake_recipient, bet_config) {
             if (amount > this.getRollSubscription().getMaxBet(amount, bet_config)) {
@@ -87,7 +87,12 @@ module.exports = function (io, request) {
 
             this.getRollSubscription().subscribeIdentifier(identifier);
 
-            return "#bet " + bet_config.getMultiplier() + " " + bet_config.getLowerBound() + " " + bet_config.getUpperBound() + " " + rake_recipient + " " + identifier + " " + client_seed
+            return {
+                "quantity": parseFloat(amount).toFixed(8) + " WAX",
+                "identifier": identifier,
+                "client_seed": client_seed,
+                "memo": "#bet " + Math.floor(bet_config.getMultiplier() * 1000) + " " + bet_config.getLowerBound() + " " + bet_config.getUpperBound() + " " + rake_recipient + " " + identifier + " " + client_seed
+            }
         }
 
         /**
@@ -95,16 +100,20 @@ module.exports = function (io, request) {
          * @param {number} roll_id
          * @param {number} amount
          * @param {BetConfig} bet_config
-         * @returns {{amount: *, memo: string}|boolean}
+         * @returns {boolean|{quantity: string, client_seed: string, memo: string}}
          */
         createCycleRollTransactionMemo(roll_id, amount, bet_config) {
-            if (amount > this.getCycleRollHistory(roll_id).getMaxBet(amount, bet_config)) {
+            if (amount > this.getCycleRollSubscription(roll_id).getMaxBet(amount, bet_config)) {
                 return false;
             }
 
             let client_seed = random_hex_string(16);
 
-            return "#join " + roll_id + " " + bet_config.getMultiplier() + " " + bet_config.getLowerBound() + " " + bet_config.getUpperBound() + " " + client_seed;
+            return {
+                "quantity": parseFloat(amount).toFixed(8) + " WAX",
+                "client_seed": client_seed,
+                "memo": "#join " + roll_id + " " + Math.floor(bet_config.getMultiplier() * 1000) + " " + bet_config.getLowerBound() + " " + bet_config.getUpperBound() + " " + client_seed
+            };
         }
 
         /* API ENDPOINTS */
@@ -133,8 +142,23 @@ module.exports = function (io, request) {
             throw resp["code"] + resp["message"];
         }
 
-        async getCycleRoll(roll_id) {
+        async getCycleRollInfo(roll_id) {
             let resp = await this.request("cycles/info/" + roll_id);
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp["code"] + resp["message"];
+        }
+
+        async getCycleRollRanking(roll_id, sort = "wagered", time = 0, limit = 50, page = 1) {
+            let resp = await this.request("cycles/ranking/" + roll_id, {
+                "sort": sort,
+                "time": time,
+                "limit": limit,
+                "page": page
+            });
 
             if (resp["success"]) {
                 return resp["data"];
@@ -182,8 +206,12 @@ module.exports = function (io, request) {
 
             if (method === "GET") {
                 for (let key in params) {
+                    if(params[key] === null) {
+                        continue;
+                    }
+
                     if (querystring !== "") {
-                        url += "&";
+                        querystring += "&";
                     }
 
                     querystring += key + "=" + encodeURIComponent(params[key]);
@@ -228,13 +256,13 @@ module.exports = function (io, request) {
         constructor(multiplier, lower_bound, upper_bound, max_roll = 10000) {
             this.lower_bound = lower_bound;
             this.upper_bound = upper_bound;
-            this.multipler = multiplier;
+            this.multiplier = multiplier;
             this.max_roll = max_roll;
 
             if (lower_bound < 1 || lower_bound > upper_bound || upper_bound > max_roll) {
                 throw new Error("The bet has illegal bounds");
             }
-            if ((upper_bound - lower_bound + 1) / max_roll * multiplier > 0.99) {
+            if (((upper_bound - lower_bound + 1) / max_roll) * multiplier > 0.99) {
                 throw new Error("The bet can't have an EV higher than 0.99")
             }
         }
@@ -260,7 +288,7 @@ module.exports = function (io, request) {
          * @returns {number}
          */
         getMultiplier() {
-            return this.multipler;
+            return this.multiplier;
         }
 
         /**
@@ -274,7 +302,7 @@ module.exports = function (io, request) {
     class RollSubscription {
         constructor() {
             this.socket = io(API_ENDPOINT + "v1/rolls", {
-                "path": "/bankroll/socket"
+                "path": "/wax/bankroll/socket", "forceNew": true
             });
 
             this.bankroll = 0;
@@ -286,13 +314,13 @@ module.exports = function (io, request) {
             this.socket.on("bankroll_update", function (data) {
                 self.bankroll = data;
 
-                for (let i = 0; self.bankrollcallbacks.length; i++) {
+                for (let i = 0; i < self.bankrollcallbacks.length; i++) {
                     self.bankrollcallbacks[i](data);
                 }
             });
 
             this.socket.on("new_roll", function (data) {
-                for (let i = 0; self.rollcallbacks.length; i++) {
+                for (let i = 0; i < self.rollcallbacks.length; i++) {
                     self.rollcallbacks[i](data);
                 }
             });
@@ -335,7 +363,7 @@ module.exports = function (io, request) {
          */
         constructor(roll_id) {
             this.socket = io(API_ENDPOINT + "v1/cycles/" + roll_id, {
-                "path": "/bankroll/socket"
+                "path": "/wax/bankroll/socket", "forceNew": true
             });
 
             this.bankroll = 0;
@@ -343,6 +371,7 @@ module.exports = function (io, request) {
 
             this.betcallbacks = [];
             this.rollcallbacks = [];
+            this.bankrollcallbacks = [];
 
             let self = this;
 
@@ -351,7 +380,9 @@ module.exports = function (io, request) {
             });
 
             this.socket.on("new_roll", function (data) {
-                for (let i = 0; self.rollcallbacks.length; i++) {
+                self.bets = [];
+
+                for (let i = 0; i < self.rollcallbacks.length; i++) {
                     self.rollcallbacks[i](data);
                 }
             });
@@ -359,10 +390,22 @@ module.exports = function (io, request) {
             this.socket.on("new_bet", function (data) {
                 self.bets.push(data);
 
-                for (let i = 0; self.betcallbacks.length; i++) {
+                for (let i = 0; i < self.betcallbacks.length; i++) {
                     self.betcallbacks[i](data);
                 }
             });
+
+            this.socket.on("bankroll_update", function (data) {
+                self.bankroll = data;
+
+                for (let i = 0; i < self.bankrollcallbacks.length; i++) {
+                    self.bankrollcallbacks[i](data);
+                }
+            });
+        }
+
+        onBankrollUpdate(cb) {
+            this.bankrollcallbacks.push(cb);
         }
 
         onNewRollResult(cb) {
