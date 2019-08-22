@@ -137,10 +137,17 @@ which will return the other classes.
 * ENDPOINTS
   * `async getRollHistory(limit = 50, page = 1, rake_recipient = null, bettor = null)` // endpoint /v1/rolls
   * `async getRollResult(roll_id)` // endpoint /v1/rolls/:roll_id
+  * `async getRollRanking(rake_recipient = null, sort = "wagered", time = 0, limit = 50, page = 1)` // endpoint /v1/rolls/ranking
+  * `async getRollAccountRanking(account, rake_recipient = null, time = 0)` // endpoint /v1/rolls/ranking/:account
+  
   * `async getCycleRollInfo(roll_id)` // endpoint /v1/cycles/info/:roll_id
   * `async getCycleRollRanking(roll_id)` // endpoint /v1/cycles/ranking/:roll_id
+  * `async getCycleRollAccountRanking(roll_id, account, time = 0)` // endpoint /v1/cycles/ranking/:roll_id/:account
   * `async getCycleRollHistory(roll_id, limit = 50, page = 1, bettor = null)` // endpoint /v1/cycles/:roll_id
   * `async getCycleRollResult(roll_id, cycle_id)` // endpoint /v1/cycles/:roll_id/:cycle_id
+  
+  * `async getBankrollBalance()` // endpoint /v1/balance
+  * `async getBankrollBalanceHistory(step = 3600, time = 0)` // endpoint /v1/balance/history
 
 #### class BetConfig
 This is a config class which stores multiplier, lower_bound, upper_bound and max_roll

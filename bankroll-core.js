@@ -129,7 +129,7 @@ module.exports = function (io, request) {
                 return resp["data"];
             }
 
-            throw resp["code"] + resp["message"];
+            throw resp;
         }
 
         async getRollResult(roll_id) {
@@ -139,7 +139,36 @@ module.exports = function (io, request) {
                 return resp["data"];
             }
 
-            throw resp["code"] + resp["message"];
+            throw resp;
+        }
+
+        async getRollRanking(rake_recipient = null, sort = "wagered", time = 0, limit = 50, page = 1) {
+            let resp = await this.request("rolls/ranking", {
+                "rake_recipient": rake_recipient,
+                "sort": sort,
+                "time": time,
+                "limit": limit,
+                "page": page
+            });
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp;
+        }
+
+        async getRollAccountRanking(account, rake_recipient = null, time = 0) {
+            let resp = await this.request("rolls/ranking/" + account, {
+                "time": time,
+                "rake_recipient": rake_recipient
+            });
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp;
         }
 
         async getCycleRollInfo(roll_id) {
@@ -149,7 +178,7 @@ module.exports = function (io, request) {
                 return resp["data"];
             }
 
-            throw resp["code"] + resp["message"];
+            throw resp;
         }
 
         async getCycleRollRanking(roll_id, sort = "wagered", time = 0, limit = 50, page = 1) {
@@ -164,7 +193,19 @@ module.exports = function (io, request) {
                 return resp["data"];
             }
 
-            throw resp["code"] + resp["message"];
+            throw resp;
+        }
+
+        async getCycleRollAccountRanking(roll_id, account, time = 0) {
+            let resp = await this.request("cycles/ranking/" + roll_id + "/" + account, {
+                "time": time,
+            });
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp;
         }
 
         async getCycleRollHistory(roll_id, limit = 50, page = 1, bettor = null) {
@@ -178,7 +219,7 @@ module.exports = function (io, request) {
                 return resp["data"];
             }
 
-            throw resp["code"] + resp["message"];
+            throw resp;
         }
 
         async getCycleRollResult(roll_id, cycle_id) {
@@ -188,7 +229,30 @@ module.exports = function (io, request) {
                 return resp["data"];
             }
 
-            throw resp["code"] + resp["message"];
+            throw resp;
+        }
+
+        async getBankrollBalance() {
+            let resp = await this.request("balance");
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp;
+        }
+
+        async getBankrollBalanceHistory(step = 3600 * 6, time = Math.floor(Date.now() / 1000) - 3600 * 24 * 7) {
+            let resp = await this.request("balance/history", {
+                "step": step,
+                "time": time
+            });
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp;
         }
 
         /**
@@ -238,7 +302,7 @@ module.exports = function (io, request) {
                     });
                 }
 
-                throw 500;
+                throw {"code": 500, "message": "INTERNAL_SERVER_ERROR"};
             } catch (e) {
                 return {"success": false, "data": null, "code": 500, "message": "Internal Server Error"}
             }
@@ -304,6 +368,7 @@ module.exports = function (io, request) {
             this.socket = io(API_ENDPOINT + "v1/rolls", {
                 "path": "/wax/bankroll/socket", "forceNew": true
             });
+            this.on = this.socket.on;
 
             this.bankroll = 0;
 
@@ -365,6 +430,7 @@ module.exports = function (io, request) {
             this.socket = io(API_ENDPOINT + "v1/cycles/" + roll_id, {
                 "path": "/wax/bankroll/socket", "forceNew": true
             });
+            this.on = this.socket.on;
 
             this.bankroll = 0;
             this.bets = [];
