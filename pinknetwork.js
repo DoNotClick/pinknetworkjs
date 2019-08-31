@@ -1,7 +1,7 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 const bankroll_management = require("./bankroll-management");
 
-module.exports = function (io, request) {
+module.exports = function (io, fetch) {
     const API_ENDPOINT = "https://api.pink.network/wax/bankroll/";
 
     class BankrollAPI {
@@ -233,8 +233,10 @@ module.exports = function (io, request) {
             throw resp;
         }
 
+        /* BALANCE ENDPOINTS */
+
         async getBankrollBalance() {
-            let resp = await this.request("balance");
+            let resp = await this.request("available-funds/latest");
 
             if (resp["success"]) {
                 return resp["data"];
@@ -243,8 +245,54 @@ module.exports = function (io, request) {
             throw resp;
         }
 
-        async getBankrollBalanceHistory(step = 3600 * 6, time = Math.floor(Date.now() / 1000) - 3600 * 24 * 7) {
-            let resp = await this.request("balance/history", {
+        async getBankrollBalanceHistory(step = 3600 * 6, time = 0) {
+            let resp = await this.request("available-funds", {
+                "step": step,
+                "time": time
+            });
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp;
+        }
+
+        async getExchangeRate(token_1 = "pink", token_2 = "wax") {
+            let resp = await this.request("exchange-rate/" + token_1 + "-" + token_2 + "/latest");
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp;
+        }
+
+        async getExchangeRateHistory(token_1 = "pink", token_2 = "wax", step = 3600 * 6, time = 0) {
+            let resp = await this.request("exchange-rate/" + token_1 + "-" + token_2, {
+                "step": step,
+                "time": time
+            });
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp;
+        }
+
+        async getBankrollProfit() {
+            let resp = await this.request("profit/latest");
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp;
+        }
+
+        async getBankrollProfitHistory(step = 3600 * 6, time = 0) {
+            let resp = await this.request("profit", {
                 "step": step,
                 "time": time
             });
@@ -288,24 +336,24 @@ module.exports = function (io, request) {
             }
 
             try {
-                if (method === "GET") {
-                    return await request({
-                        "method": "GET",
-                        "uri": url,
-                        "json": true
-                    });
-                } else if (method === "POST") {
-                    return await request({
-                        "method": "GET",
-                        "uri": url,
-                        "body": params,
-                        "json": true
-                    });
+                if (method.toLowerCase() === "get") {
+                    return (await fetch(url, {
+                        "mode": "cors"
+                    })).json();
+                } else if (method.toLowerCase() === "post") {
+                    return (await fetch(url, {
+                        "method": "post",
+                        "mode": "cors",
+                        "body": JSON.stringify(params),
+                        "headers": {
+                            'Content-Type': 'application/json',
+                        },
+                    })).json();
                 }
 
-                throw {"code": 500, "message": "INTERNAL_SERVER_ERROR"};
+                throw {"code": 500, "message": "Internal Server Error"};
             } catch (e) {
-                return {"success": false, "data": null, "code": 500, "message": "Internal Server Error"}
+                return {"success": false, "data": null, "code": 500, "message": String(e)}
             }
         }
     }
@@ -369,26 +417,12 @@ module.exports = function (io, request) {
             this.socket = io(API_ENDPOINT + "v1/rolls", {
                 "path": "/wax/bankroll/socket", "forceNew": true
             });
-            this.on = this.socket.on;
 
             this.bankroll = 0;
-
-            this.bankrollcallbacks = [];
-            this.rollcallbacks = [];
 
             let self = this;
             this.socket.on("bankroll_update", function (data) {
                 self.bankroll = data;
-
-                for (let i = 0; i < self.bankrollcallbacks.length; i++) {
-                    self.bankrollcallbacks[i](data);
-                }
-            });
-
-            this.socket.on("new_roll", function (data) {
-                for (let i = 0; i < self.rollcallbacks.length; i++) {
-                    self.rollcallbacks[i](data);
-                }
             });
         }
 
@@ -404,13 +438,9 @@ module.exports = function (io, request) {
             this.socket.emit("subscribe_all", null)
         }
 
-        onNewRollResult(cb) {
-            this.rollcallbacks.push(cb);
-        }
 
-        onBankrollUpdate(cb) {
-            this.bankrollcallbacks.push(cb);
-        }
+        onNewRollResult(cb) { this.socket.on("new_roll", cb); }
+        onBankrollUpdate(cb) { this.socket.on("bankroll_update", cb); }
 
         /**
          *
@@ -418,7 +448,7 @@ module.exports = function (io, request) {
          * @returns {number}
          */
         getMaxBet(bet_config) {
-            return bankroll_management.getMaxBet([], bet_config, this.bankroll);
+            return 0.95 * bankroll_management.getMaxBet([], bet_config, this.bankroll);
         }
     }
 
@@ -431,14 +461,9 @@ module.exports = function (io, request) {
             this.socket = io(API_ENDPOINT + "v1/cycles/" + roll_id, {
                 "path": "/wax/bankroll/socket", "forceNew": true
             });
-            this.on = this.socket.on;
 
             this.bankroll = 0;
             this.bets = [];
-
-            this.betcallbacks = [];
-            this.rollcallbacks = [];
-            this.bankrollcallbacks = [];
 
             let self = this;
 
@@ -448,40 +473,21 @@ module.exports = function (io, request) {
 
             this.socket.on("new_roll", function (data) {
                 self.bets = [];
-
-                for (let i = 0; i < self.rollcallbacks.length; i++) {
-                    self.rollcallbacks[i](data);
-                }
             });
 
             this.socket.on("new_bet", function (data) {
                 self.bets.push(data);
-
-                for (let i = 0; i < self.betcallbacks.length; i++) {
-                    self.betcallbacks[i](data);
-                }
             });
 
             this.socket.on("bankroll_update", function (data) {
                 self.bankroll = data;
-
-                for (let i = 0; i < self.bankrollcallbacks.length; i++) {
-                    self.bankrollcallbacks[i](data);
-                }
             });
         }
 
-        onBankrollUpdate(cb) {
-            this.bankrollcallbacks.push(cb);
-        }
-
-        onNewRollResult(cb) {
-            this.rollcallbacks.push(cb);
-        }
-
-        onNewBet(cb) {
-            this.betcallbacks.push(cb);
-        }
+        onBankrollUpdate(cb) { this.socket.on("bankroll_update", cb); }
+        onNewRollResult(cb) { this.socket.on("new_roll", cb); }
+        onNewBet(cb) { this.socket.on("new_bet", cb); }
+        onRollReduction(cb) { this.socket.on("roll_reduction", cb); }
 
         /**
          *
@@ -489,7 +495,7 @@ module.exports = function (io, request) {
          * @returns {number}
          */
         getMaxBet(bet_config) {
-            return bankroll_management.getMaxBet(this.bets, bet_config, this.bankroll);
+            return 0.95 * bankroll_management.getMaxBet(this.bets, bet_config, this.bankroll);
         }
     }
 
@@ -593,7 +599,7 @@ function calculateMinBankroll(chainedRangeStart, amountCollected, maxResult) {
         }
         currentRange = currentRange.next;
     }
-    return Math.cbrt(variance) * 100
+    return Math.cbrt(variance) * 125
 }
 
 
@@ -662,7 +668,7 @@ function getMaxBet(bets, betConfig, bankroll) {
     //Calculating start value for approximation = max bet, if this bet were the only bet
     const odds = (betConfig.upper_bound - betConfig.lower_bound + 1) / betConfig.max_roll;
     const maxBetFactor = 5 / Math.sqrt(1 / odds - 1) - 0.2;
-    let soloMaxBet = bankroll * maxBetFactor / 100 * 2;
+    let soloMaxBet = bankroll * maxBetFactor / 125 * 2;
 
     const betEV = betConfig.multiplier * odds;
 
@@ -682,140 +688,226 @@ module.exports = {
     getMaxBet: getMaxBet
 };
 },{}],3:[function(require,module,exports){
-const request = function(options) {
-    return new Promise(function (resolve, reject) {
-        if(options["method"] === "GET") {
-            $.ajax({
-                method: "GET",
-                url: options["uri"],
-                dataType: options["json"] ? "json" : "text",
-                success: function (data) {
-                    resolve(data);
-                },
-                error: function () {
-                    reject()
-                }
-            });
-        }
-        else if(options["method"] === "POST") {
-            $.ajax({
-                method: "POST",
-                url: options["uri"],
-                data: options["body"],
-                dataType: options["json"] ? "json" : "text",
-                success: function (data) {
-                    resolve(data);
-                },
-                error: function () {
-                    reject();
-                }
-            });
-        }
-        else {
-            reject();
-        }
-    })
-};
-
 pinknetwork = {
-    "bankroll": require("./bankroll-core")(io, request),
-    "chat": require("./chat-core")(io, request)
+    "bankroll": require("./bankroll-core")(io, fetch),
+    "chat": require("./chat-core")(io, fetch)
 };
 },{"./bankroll-core":1,"./chat-core":4}],4:[function(require,module,exports){
-module.exports = function (io, request) {
+module.exports = function (io, fetch) {
     const API_ENDPOINT = "https://api.pink.network/wax/chat/";
 
     class ChatAPI {
+
         constructor(room) {
             this.socket = io(API_ENDPOINT + "v1/rooms/" + room, {
                 "path": "/wax/chat/socket", "forceNew": true
             });
 
-            this.room = room;
-
-            this.loadcallbacks = [];
-            this.messagecallbacks = [];
-            this.errorcallbacks = [];
-
             let self = this;
 
-            this.auth_token = null;
+            this.room = room;
+            this.nonce = null;
             this.authenticated = false;
             this.sig_sent = false;
 
-            this.socket.on('chat_load', function(messages) {
-                for (let i = 0; i < self.loadcallbacks.length; i++) {
-                    self.loadcallbacks[i](messages);
-                }
-            });
-
-            this.socket.on('chat_message', function(message) {
-                for (let i = 0; i < self.messagecallbacks.length; i++) {
-                    self.messagecallbacks[i](message);
-                }
-            });
-
-            this.socket.on('error_message', function(message) {
-                for (let i = 0; i < self.errorcallbacks.length; i++) {
-                    self.errorcallbacks[i](message);
-                }
-            });
-
-            this.socket.on('login', function(msg){
+            this.socket.on('login', function(){
                 self.authenticated = true;
             });
 
-            this.socket.on('logout', function(msg){
+            this.socket.on('logout', function() {
+                self._delete_cookie("chat-auth:" + self.room);
+
                 self.authenticated = false;
             });
 
             this.socket.on('authenticate', function(msg) {
                 self.authenticated = false;
                 self.sig_sent = false;
-                self.auth_token = msg;
+                self.nonce = msg;
             });
+
+            if(this._get_cookie("chat-auth:" + this.room)) {
+                this.socket.emit("authenticate", this._get_cookie("chat-auth:" + this.room))
+            }
         }
 
-        login(signature, publicKey, account_name, avatar = null) {
+        login(signature, publicKey, account) {
             if(this.sig_sent) {
                 return;
             }
 
             this.sig_sent = true;
 
-            this.socket.emit("login", {"pub": publicKey, "sig": signature, "account": account_name, "avatar": avatar});
+            this.socket.emit("login", {"pub": publicKey, "sig": signature, "account": account});
         }
 
-        logout() {
+        async authenticate(signature, publicKey, account, stay_logged_in = true) {
+            if(this.isAuthenticated()) {
+                return;
+            }
+
+            let self = this;
+
+            let auth_token = await this.request("authenticate", {
+                "room": self.room,
+                "account": account,
+                "public_key": publicKey,
+                "signature": signature,
+                "nonce": self.nonce
+            }, 1, "POST");
+
+            if(stay_logged_in) {
+                self._set_cookie("chat-auth:" + self.room, auth_token["data"]);
+            }
+
+            if(auth_token["success"] !== true) {
+                return null;
+            }
+
+            this.socket.emit("authenticate", auth_token["data"]);
+
+            return auth_token["data"];
+        }
+
+        async logout() {
             if(!this.isAuthenticated()) {
                 return;
             }
 
-            this.socket.emit("logout");
-        }
+            if(this._get_cookie("chat-auth:" + this.room)) {
+                await this.request("logout", {
+                    "token": this._get_cookie("chat-auth:" + this.room)
+                },1, "POST");
 
-        send(message) {
-            this.socket.emit('chat_message', message);
+                this._delete_cookie("chat-auth:" + this.room)
+            }
+
+            this.socket.emit("logout");
         }
 
         isAuthenticated() {
             return this.authenticated;
         }
 
+        getNonce() {
+            return this.nonce;
+        }
+
         getAuthToken() {
-            return this.auth_token;
+            return this.getNonce();
         }
 
-        onError(cb) {
-            this.errorcallbacks.push(cb);
+        getAuthenticationSignText() {
+            return "chat " + this.room + " " + this.nonce;
         }
 
-        onLoad(cb) {
-            this.loadcallbacks.push(cb);
+        send(message) {
+            this.socket.emit('chat_message', message);
         }
 
-        onMessage(cb) {
-            this.messagecallbacks.push(cb);
+        onError(cb) { this.socket.on("error_message", cb); }
+        onLoad(cb) { this.socket.on("chat_load", cb); }
+        onMessage(cb) { this.socket.on("chat_message", cb); }
+        onLogout(cb) { this.socket.on("logout", cb); }
+        onLogin(cb) { this.socket.on("login", cb); }
+
+        /**
+         *
+         * @param endpoint
+         * @param params
+         * @param version
+         * @param method
+         * @returns {Promise<{code: number, data: null, success: boolean, message: string}>}
+         */
+        async request(endpoint, params = {}, version = 1, method = "GET") {
+            let url = API_ENDPOINT + "v" + version + "/" + endpoint;
+
+            let querystring = "";
+
+            if (method === "GET") {
+                for (let key in params) {
+                    if(params[key] === null) {
+                        continue;
+                    }
+
+                    if (querystring !== "") {
+                        querystring += "&";
+                    }
+
+                    querystring += key + "=" + encodeURIComponent(params[key]);
+                }
+
+                if (querystring.length > 0) {
+                    url += "?" + querystring;
+                }
+            }
+
+            try {
+                if (method.toLowerCase() === "get") {
+                    return (await fetch(url, {
+                        "mode": "cors"
+                    })).json();
+                } else if (method.toLowerCase() === "post") {
+                    return (await fetch(url, {
+                        "method": "post",
+                        "mode": "cors",
+                        "body": JSON.stringify(params),
+                        "headers": {
+                            'Content-Type': 'application/json',
+                        },
+                    })).json();
+                }
+
+                throw {"code": 500, "message": "Internal Server Error"};
+            } catch (e) {
+                return {"success": false, "data": null, "code": 500, "message": String(e)}
+            }
+        }
+
+        _set_cookie(name, value, days = 365) {
+            if(!document.cookie) {
+                return;
+            }
+
+            let expires = "";
+
+            if (days) {
+                let date = new Date();
+                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+
+                expires = "; expires=" + date.toUTCString();
+            }
+
+            document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+        }
+
+        _get_cookie(name) {
+            if(!document.cookie) {
+                return null;
+            }
+
+            let nameEQ = name + "=";
+            let ca = document.cookie.split(';');
+
+            for(let i=0;i < ca.length;i++) {
+                let c = ca[i];
+
+                while(c.charAt(0) == ' ') {
+                    c = c.substring(1, c.length);
+                }
+
+                if(c.indexOf(nameEQ) == 0) {
+                    return c.substring(nameEQ.length, c.length);
+                }
+            }
+
+            return null;
+        }
+
+        _delete_cookie(name) {
+            if(document.cookie) {
+                document.cookie = name+'=; Max-Age=-99999999;';
+            }
         }
     }
 

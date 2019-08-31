@@ -83,7 +83,7 @@ function calculateMinBankroll(chainedRangeStart, amountCollected, maxResult) {
         }
         currentRange = currentRange.next;
     }
-    return Math.cbrt(variance) * 100
+    return Math.cbrt(variance) * 125
 }
 
 
@@ -152,7 +152,7 @@ function getMaxBet(bets, betConfig, bankroll) {
     //Calculating start value for approximation = max bet, if this bet were the only bet
     const odds = (betConfig.upper_bound - betConfig.lower_bound + 1) / betConfig.max_roll;
     const maxBetFactor = 5 / Math.sqrt(1 / odds - 1) - 0.2;
-    let soloMaxBet = bankroll * maxBetFactor / 100 * 2;
+    let soloMaxBet = bankroll * maxBetFactor / 125 * 2;
 
     const betEV = betConfig.multiplier * odds;
 

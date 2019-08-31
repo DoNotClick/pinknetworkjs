@@ -1,6 +1,6 @@
 const bankroll_management = require("./bankroll-management");
 
-module.exports = function (io, request) {
+module.exports = function (io, fetch) {
     const API_ENDPOINT = "https://api.pink.network/wax/bankroll/";
 
     class BankrollAPI {
@@ -232,8 +232,10 @@ module.exports = function (io, request) {
             throw resp;
         }
 
+        /* BALANCE ENDPOINTS */
+
         async getBankrollBalance() {
-            let resp = await this.request("balance");
+            let resp = await this.request("available-funds/latest");
 
             if (resp["success"]) {
                 return resp["data"];
@@ -242,8 +244,54 @@ module.exports = function (io, request) {
             throw resp;
         }
 
-        async getBankrollBalanceHistory(step = 3600 * 6, time = Math.floor(Date.now() / 1000) - 3600 * 24 * 7) {
-            let resp = await this.request("balance/history", {
+        async getBankrollBalanceHistory(step = 3600 * 6, time = 0) {
+            let resp = await this.request("available-funds", {
+                "step": step,
+                "time": time
+            });
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp;
+        }
+
+        async getExchangeRate(token_1 = "pink", token_2 = "wax") {
+            let resp = await this.request("exchange-rate/" + token_1 + "-" + token_2 + "/latest");
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp;
+        }
+
+        async getExchangeRateHistory(token_1 = "pink", token_2 = "wax", step = 3600 * 6, time = 0) {
+            let resp = await this.request("exchange-rate/" + token_1 + "-" + token_2, {
+                "step": step,
+                "time": time
+            });
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp;
+        }
+
+        async getBankrollProfit() {
+            let resp = await this.request("profit/latest");
+
+            if (resp["success"]) {
+                return resp["data"];
+            }
+
+            throw resp;
+        }
+
+        async getBankrollProfitHistory(step = 3600 * 6, time = 0) {
+            let resp = await this.request("profit", {
                 "step": step,
                 "time": time
             });
@@ -287,24 +335,24 @@ module.exports = function (io, request) {
             }
 
             try {
-                if (method === "GET") {
-                    return await request({
-                        "method": "GET",
-                        "uri": url,
-                        "json": true
-                    });
-                } else if (method === "POST") {
-                    return await request({
-                        "method": "GET",
-                        "uri": url,
-                        "body": params,
-                        "json": true
-                    });
+                if (method.toLowerCase() === "get") {
+                    return (await fetch(url, {
+                        "mode": "cors"
+                    })).json();
+                } else if (method.toLowerCase() === "post") {
+                    return (await fetch(url, {
+                        "method": "post",
+                        "mode": "cors",
+                        "body": JSON.stringify(params),
+                        "headers": {
+                            'Content-Type': 'application/json',
+                        },
+                    })).json();
                 }
 
-                throw {"code": 500, "message": "INTERNAL_SERVER_ERROR"};
+                throw {"code": 500, "message": "Internal Server Error"};
             } catch (e) {
-                return {"success": false, "data": null, "code": 500, "message": "Internal Server Error"}
+                return {"success": false, "data": null, "code": 500, "message": String(e)}
             }
         }
     }
@@ -368,26 +416,12 @@ module.exports = function (io, request) {
             this.socket = io(API_ENDPOINT + "v1/rolls", {
                 "path": "/wax/bankroll/socket", "forceNew": true
             });
-            this.on = this.socket.on;
 
             this.bankroll = 0;
-
-            this.bankrollcallbacks = [];
-            this.rollcallbacks = [];
 
             let self = this;
             this.socket.on("bankroll_update", function (data) {
                 self.bankroll = data;
-
-                for (let i = 0; i < self.bankrollcallbacks.length; i++) {
-                    self.bankrollcallbacks[i](data);
-                }
-            });
-
-            this.socket.on("new_roll", function (data) {
-                for (let i = 0; i < self.rollcallbacks.length; i++) {
-                    self.rollcallbacks[i](data);
-                }
             });
         }
 
@@ -403,13 +437,9 @@ module.exports = function (io, request) {
             this.socket.emit("subscribe_all", null)
         }
 
-        onNewRollResult(cb) {
-            this.rollcallbacks.push(cb);
-        }
 
-        onBankrollUpdate(cb) {
-            this.bankrollcallbacks.push(cb);
-        }
+        onNewRollResult(cb) { this.socket.on("new_roll", cb); }
+        onBankrollUpdate(cb) { this.socket.on("bankroll_update", cb); }
 
         /**
          *
@@ -417,7 +447,7 @@ module.exports = function (io, request) {
          * @returns {number}
          */
         getMaxBet(bet_config) {
-            return bankroll_management.getMaxBet([], bet_config, this.bankroll);
+            return 0.95 * bankroll_management.getMaxBet([], bet_config, this.bankroll);
         }
     }
 
@@ -430,14 +460,9 @@ module.exports = function (io, request) {
             this.socket = io(API_ENDPOINT + "v1/cycles/" + roll_id, {
                 "path": "/wax/bankroll/socket", "forceNew": true
             });
-            this.on = this.socket.on;
 
             this.bankroll = 0;
             this.bets = [];
-
-            this.betcallbacks = [];
-            this.rollcallbacks = [];
-            this.bankrollcallbacks = [];
 
             let self = this;
 
@@ -447,40 +472,21 @@ module.exports = function (io, request) {
 
             this.socket.on("new_roll", function (data) {
                 self.bets = [];
-
-                for (let i = 0; i < self.rollcallbacks.length; i++) {
-                    self.rollcallbacks[i](data);
-                }
             });
 
             this.socket.on("new_bet", function (data) {
                 self.bets.push(data);
-
-                for (let i = 0; i < self.betcallbacks.length; i++) {
-                    self.betcallbacks[i](data);
-                }
             });
 
             this.socket.on("bankroll_update", function (data) {
                 self.bankroll = data;
-
-                for (let i = 0; i < self.bankrollcallbacks.length; i++) {
-                    self.bankrollcallbacks[i](data);
-                }
             });
         }
 
-        onBankrollUpdate(cb) {
-            this.bankrollcallbacks.push(cb);
-        }
-
-        onNewRollResult(cb) {
-            this.rollcallbacks.push(cb);
-        }
-
-        onNewBet(cb) {
-            this.betcallbacks.push(cb);
-        }
+        onBankrollUpdate(cb) { this.socket.on("bankroll_update", cb); }
+        onNewRollResult(cb) { this.socket.on("new_roll", cb); }
+        onNewBet(cb) { this.socket.on("new_bet", cb); }
+        onRollReduction(cb) { this.socket.on("roll_reduction", cb); }
 
         /**
          *
@@ -488,7 +494,7 @@ module.exports = function (io, request) {
          * @returns {number}
          */
         getMaxBet(bet_config) {
-            return bankroll_management.getMaxBet(this.bets, bet_config, this.bankroll);
+            return 0.95 * bankroll_management.getMaxBet(this.bets, bet_config, this.bankroll);
         }
     }
 

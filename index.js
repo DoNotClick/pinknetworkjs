@@ -1,7 +1,7 @@
 const io = require("socket.io-client");
-const request = require("request-promise-native");
+const fetch = require("node-fetch");
 
 module.exports = {
-    "bankroll": require("./bankroll-core")(io, request),
-    "chat": require("./chat-core")(io, request),
+    "bankroll": require("./bankroll-core")(io, fetch),
+    "chat": require("./chat-core")(io, fetch),
 };

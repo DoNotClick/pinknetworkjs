@@ -146,8 +146,10 @@ which will return the other classes.
   * `async getCycleRollHistory(roll_id, limit = 50, page = 1, bettor = null)` // endpoint /v1/cycles/:roll_id
   * `async getCycleRollResult(roll_id, cycle_id)` // endpoint /v1/cycles/:roll_id/:cycle_id
   
-  * `async getBankrollBalance()` // endpoint /v1/balance
-  * `async getBankrollBalanceHistory(step = 3600, time = 0)` // endpoint /v1/balance/history
+  * `async getBankrollBalance()` // endpoint /v1/available-funds/latest
+  * `async getBankrollBalanceHistory(step = 3600 * 6, time = 0)` // endpoint /v1/available-funds
+  * `async getExchangeRate(token_1 = "pink", token_2 = "wax")` // endpoint /v1/exchange-rate/:token_pair/latest
+  * `async getExchangeRateHistory(token_1 = "pink", token_2 = "wax", step = 3600 * 6, time = 0)` // endpoint /v1/exchange-rate/:token_pair
 
 #### class BetConfig
 This is a config class which stores multiplier, lower_bound, upper_bound and max_roll
@@ -206,7 +208,7 @@ to the pink.network backend servers, so it can be used in frontend only applicat
   
 * Getter
   * `isAuthenticated()` // is client authenticated?
-  * `getAuthToken()` // returns the nonce which has to be signed by Scatter
+  * `getNonce()` // returns the nonce which has to be signed by Scatter
 
 * Events
   * `onMessage(callback cb)` // new message came in
