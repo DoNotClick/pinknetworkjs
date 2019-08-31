@@ -79,6 +79,46 @@ bankroll.getCycleRollSubscription(roll_id).onNewBet((bet) => {
 })
 ```
 
+#### Chat Example
+```javascript
+const pinknetwork = require("pinknetworkjs");
+const chat = new pinknetwork.chat("chatroom")
+
+// login method 1 (has to be done on every connection)
+async function login_to_chat_version_1() {
+  let sig = await scatter.getArbitrarySignature(user.publicKey, chat.getAuthenticationSignText());
+  
+  await chat.authenticate(sig, user.publicKey, user.account.name, true);
+}
+
+// login method 2 (has to be done once and then cookie authentication will handle everything)
+async function login_to_chat_version_2() {
+  let sig = await scatter.user.authenticate(chat.getNonce(), "login", user.publicKey)
+  
+  await chat.login(sig, user.publicKey, user.account.name, true);
+}
+
+chat.onLoad(function(messages) {
+  // on initial connect the past messages are sent
+})
+
+chat.onMessage(function(message) {
+  // new chat message
+})
+
+chat.onError(function(message) {
+  // error occurred with message: message
+})
+
+chat.onLogin(function(info) {
+  // session was successfully created
+})
+
+chat.onLogout(function() {
+  // session was successfully destroyed
+});
+```
+
 ## Documentation
 
 ### Bankroll
@@ -134,22 +174,24 @@ which will return the other classes.
   * @param method // GET or POST. If POST, the params will be the data
   * @return {"success": bool, "data": mixed, "code": int, "message": string}
   
-* ENDPOINTS
+* ROLL ENDPOINTS
   * `async getRollHistory(limit = 50, page = 1, rake_recipient = null, bettor = null)` // endpoint /v1/rolls
   * `async getRollResult(roll_id)` // endpoint /v1/rolls/:roll_id
   * `async getRollRanking(rake_recipient = null, sort = "wagered", time = 0, limit = 50, page = 1)` // endpoint /v1/rolls/ranking
   * `async getRollAccountRanking(account, rake_recipient = null, time = 0)` // endpoint /v1/rolls/ranking/:account
-  
+* CYCLE ENDPOINTS
   * `async getCycleRollInfo(roll_id)` // endpoint /v1/cycles/info/:roll_id
   * `async getCycleRollRanking(roll_id)` // endpoint /v1/cycles/ranking/:roll_id
   * `async getCycleRollAccountRanking(roll_id, account, time = 0)` // endpoint /v1/cycles/ranking/:roll_id/:account
   * `async getCycleRollHistory(roll_id, limit = 50, page = 1, bettor = null)` // endpoint /v1/cycles/:roll_id
   * `async getCycleRollResult(roll_id, cycle_id)` // endpoint /v1/cycles/:roll_id/:cycle_id
-  
+* STATISTIC ENDPOINTS
   * `async getBankrollBalance()` // endpoint /v1/available-funds/latest
   * `async getBankrollBalanceHistory(step = 3600 * 6, time = 0)` // endpoint /v1/available-funds
   * `async getExchangeRate(token_1 = "pink", token_2 = "wax")` // endpoint /v1/exchange-rate/:token_pair/latest
   * `async getExchangeRateHistory(token_1 = "pink", token_2 = "wax", step = 3600 * 6, time = 0)` // endpoint /v1/exchange-rate/:token_pair
+  * `async getBankrollProfit()` // endpoint /v1/profit/latest
+  * `async getBankrollProfitHistory(step = 3600 * 6, time = 0)` // endpoint /v1/profit
 
 #### class BetConfig
 This is a config class which stores multiplier, lower_bound, upper_bound and max_roll
@@ -196,21 +238,32 @@ fires a event when a new bet or a new result was published on the blockchain for
   * `onBankrollUpdate(callback cb)`
 
 ### Chat
-The chat api allows to provide a simple chat with scatter authentication and connects
+The chat api allows to provide a simple chat with scatter (or any other wallet which can sign) authentication and connects
 to the pink.network backend servers, so it can be used in frontend only applications.
 
 #### class ChatAPI
 
 * Methods
-  * `login(string signature, string publicKey, string account_name, string avatar)` // use scatter method authenticate to sign the nonce. Provide Scatter base 64 image as avatar (See Examples) 
-  * `logout()` // logout
-  * `send(string message)` // send a chat message
+  * `login(string signature, string publicKey, string account_name)` // use scatter method authenticate to sign the nonce
+    * `signature` The signature which is returned by `scatter.authenticate(chat.getNonce(), "login", publicKey)`
+    * `publicKey` the public Key of the account which you want to authenticate
+    * `account_name` the account name bound to the public key
+  * `authenticate(string signature, string publicKey, string account_name, bool stay_logged_in)` // creates an authentication token which can be used to authenticate to the chat in the future without having to sign anything
+    * `signature` The method `scatter.getArbitrarySignature` of the text which is returned by `getAuthenticationSignText()`
+    * `publicKey` the public Key of the account which you want to authenticate
+    * `account_name` the account name bound to the public key
+    * `stay_logged_in` if set to true in browser a cookie will be set which will automatically authenticate the user in the future (you dont need to do anything if this is true)
+  * `logout()` // sends logout events and destroys the user's chat session
+  * `send(string message)` // sends a chat message
   
 * Getter
   * `isAuthenticated()` // is client authenticated?
-  * `getNonce()` // returns the nonce which has to be signed by Scatter
+  * `getNonce()` // returns the nonce which has to be signed by the user if you use the login method
+  * `getAuthenticationSignText()` // returns the text the user has to sign to use the authenticate method
 
 * Events
   * `onMessage(callback cb)` // new message came in
   * `onLoad(callback cb)` // chat loaded (last 25 messages)
-  * `onError(callback cb)` // error occurred.
+  * `onError(callback cb)` // error occurred. message is passed as argument
+  * `onLogout(callback cb)` // the socket connection destroyed the user's session
+  * `onLogin(callback cb)` // the authentication was successful. The user info object is passed as callback argument
