@@ -17,10 +17,10 @@ npm install pinknetworkjs
 
 Use it in the browser:
 ```html
-<!-- socket.io >= 2.0.0 -->
-<script type="text/javascript" src="socket.io.min.js" />
-<!-- api wrapper for browser -->
-<script type="text/javascript" src="./node_modules/pinknetworkjs/pinknetwork.min.js" />
+<!-- socket.io >= 2.0.0 --> 
+<script type="text/javascript" src="socket.io.min.js" /> 
+<!-- api wrapper for browser --> 
+<script type="text/javascript" src="./node_modules/pinknetworkjs/pinknetwork.min.js" /> 
 ```
 
 ### Bankroll
@@ -233,6 +233,7 @@ fires a event when a new bet or a new result was published on the blockchain for
 * Events
   * `onNewRollResult(callback cb)`
   * `onNewBet(callback cb)`
+  * `onRollReduction(callback cb)`
   * `onBankrollUpdate(callback cb)`
 
 ### Chat
