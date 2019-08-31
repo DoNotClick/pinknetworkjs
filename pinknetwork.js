@@ -793,10 +793,6 @@ module.exports = function (io, fetch) {
             return this.nonce;
         }
 
-        getAuthToken() {
-            return this.getNonce();
-        }
-
         getAuthenticationSignText() {
             return "chat " + this.room + " " + this.nonce;
         }

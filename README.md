@@ -19,8 +19,6 @@ Use it in the browser:
 ```html
 <!-- socket.io >= 2.0.0 -->
 <script type="text/javascript" src="socket.io.min.js" />
-<!-- jquery >= 3.0.0 -->
-<script type="text/javascript" src="jquery.min.js" />
 <!-- api wrapper for browser -->
 <script type="text/javascript" src="./node_modules/pinknetworkjs/pinknetwork.min.js" />
 ```
