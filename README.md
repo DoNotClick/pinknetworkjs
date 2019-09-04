@@ -80,21 +80,31 @@ bankroll.getCycleRollSubscription(roll_id).onNewBet((bet) => {
 #### Chat Example
 ```javascript
 const pinknetwork = require("pinknetworkjs");
-const chat = new pinknetwork.chat("chatroom")
+const chat = new pinknetwork.chat("chatroom");
 
-// login method 1 (has to be done on every connection)
+// login method 1 (has to be done once and then cookie authentication will handle everything)
 async function login_to_chat_version_1() {
   let sig = await scatter.getArbitrarySignature(user.publicKey, chat.getAuthenticationSignText());
   
-  await chat.authenticate(sig, user.publicKey, user.account.name, true);
+  // return authentication token
+  return await chat.authenticate_arbitrary(sig, user.account.publicKey, user.account.name, true);
 }
 
-// login method 2 (has to be done once and then cookie authentication will handle everything)
+// login method 2 (has to be done once and then cookie authentication will handle everything and works with hardware wallets)
 async function login_to_chat_version_2() {
-  let sig = await scatter.user.authenticate(chat.getNonce(), "login", user.publicKey)
+  let sig = await api.transact(chat.getAuthenticationTransaction(user.account.name, user.account.authority), {broadcast: false, sign: true})
+  
+  // return authentication token
+  return await chat.authenticate_transaction(sig.signatures[0], user.account.publicKey, user.account.name, user.account.authority, true);
+}
+
+// login method 3 (has to be done on every single connected)
+async function login_to_chat_version_3() {
+  let sig = await scatter.authenticate(chat.getNonce(), "login", user.publicKey)
   
   await chat.login(sig, user.publicKey, user.account.name, true);
 }
+
 
 chat.onLoad(function(messages) {
   // on initial connect the past messages are sent

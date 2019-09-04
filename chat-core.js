@@ -46,7 +46,7 @@ module.exports = function (io, fetch) {
             this.socket.emit("login", {"pub": publicKey, "sig": signature, "account": account});
         }
 
-        async authenticate(signature, publicKey, account, stay_logged_in = true) {
+        async authenticate_arbitrary(signature, publicKey, account, stay_logged_in = true) {
             if(this.isAuthenticated()) {
                 return;
             }
@@ -54,8 +54,41 @@ module.exports = function (io, fetch) {
             let self = this;
 
             let auth_token = await this.request("authenticate", {
+                "method": "arbitrary",
                 "room": self.room,
                 "account": account,
+                "public_key": publicKey,
+                "signature": signature,
+                "nonce": self.nonce
+            }, 1, "POST");
+
+            if(stay_logged_in) {
+                self._set_cookie("chat-auth:" + self.room, auth_token["data"]);
+            }
+
+            if(auth_token["success"] !== true) {
+                return null;
+            }
+
+            this.socket.emit("authenticate", auth_token["data"]);
+
+            return auth_token["data"];
+        }
+
+        async authenticate_transaction(signature, publicKey, account, permission, stay_logged_in = true) {
+            if(this.isAuthenticated()) {
+                return;
+            }
+
+            let self = this;
+
+            let auth_token = await this.request("authenticate", {
+                "method": "transaction",
+                "room": self.room,
+
+                "account": account,
+                "permission": permission,
+
                 "public_key": publicKey,
                 "signature": signature,
                 "nonce": self.nonce
@@ -100,6 +133,28 @@ module.exports = function (io, fetch) {
 
         getAuthenticationSignText() {
             return "chat " + this.room + " " + this.nonce;
+        }
+
+        getAuthenticationTransaction(account, permission) {
+            let self = this;
+
+            return {
+                actions: [{
+                    account: 'pinknetworkx',
+                    name: 'chatauth',
+                    authorization: [{
+                        actor: account,
+                        permission: permission,
+                    }],
+                    data: {
+                        room: self.room,
+                        nonce: self.nonce
+                    },
+                }],
+                expiration: "2019-06-05T12:00:00.000",
+                ref_block_num: 1,
+                ref_block_prefix: 405914617
+            }
         }
 
         send(message) {
