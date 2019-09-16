@@ -724,11 +724,11 @@ module.exports = function (io, fetch) {
                 self.authenticated = false;
                 self.sig_sent = false;
                 self.nonce = msg;
-            });
 
-            if(this._get_cookie("chat-auth:" + this.room)) {
-                this.socket.emit("authenticate", this._get_cookie("chat-auth:" + this.room))
-            }
+                if(self._get_cookie("chat-auth:" + self.room)) {
+                    self.socket.emit("authenticate", self._get_cookie("chat-auth:" + self.room))
+                }
+            });
         }
 
         login(signature, publicKey, account) {

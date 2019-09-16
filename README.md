@@ -257,10 +257,16 @@ to the pink.network backend servers, so it can be used in frontend only applicat
     * `signature` The signature which is returned by `scatter.authenticate(chat.getNonce(), "login", publicKey)`
     * `publicKey` the public Key of the account which you want to authenticate
     * `account_name` the account name bound to the public key
-  * `authenticate(string signature, string publicKey, string account_name, bool stay_logged_in)` // creates an authentication token which can be used to authenticate to the chat in the future without having to sign anything
+  * `authenticate_arbitrary(string signature, string publicKey, string account_name, bool stay_logged_in)` // creates an authentication token which can be used to authenticate to the chat in the future without having to sign anything
     * `signature` The method `scatter.getArbitrarySignature` of the text which is returned by `getAuthenticationSignText()`
     * `publicKey` the public Key of the account which you want to authenticate
     * `account_name` the account name bound to the public key
+    * `stay_logged_in` if set to true in browser a cookie will be set which will automatically authenticate the user in the future (you dont need to do anything if this is true)
+  * `authenticate_transaction(string signature, string publicKey, string account_name, string permission, bool stay_logged_in)` // creates an authentication token which can be used to authenticate to the chat in the future without having to sign anything
+    * `signature` The signature of the transaction which is returned by `getAuthenticationTransaction()`
+    * `publicKey` the public Key of the account which you want to authenticate
+    * `account_name` the account name bound to the public key
+    * `permission` the permission which is used to sign the transaction
     * `stay_logged_in` if set to true in browser a cookie will be set which will automatically authenticate the user in the future (you dont need to do anything if this is true)
   * `logout()` // sends logout events and destroys the user's chat session
   * `send(string message)` // sends a chat message
@@ -268,7 +274,8 @@ to the pink.network backend servers, so it can be used in frontend only applicat
 * Getter
   * `isAuthenticated()` // is client authenticated?
   * `getNonce()` // returns the nonce which has to be signed by the user if you use the login method
-  * `getAuthenticationSignText()` // returns the text the user has to sign to use the authenticate method
+  * `getAuthenticationSignText()` // returns the text the user has to sign to use the authenticate_arbitrary method
+  * `getAuthenticationTransaction()` // returns the transaction the user has to sign to use the authenticate_transaction method
 
 * Events
   * `onMessage(callback cb)` // new message came in
